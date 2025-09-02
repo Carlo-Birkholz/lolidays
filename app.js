@@ -4,6 +4,8 @@ import pkg from '@slack/bolt';
 const { App } = pkg;
 import express from 'express';
 import crypto from 'crypto';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import fetch from 'node-fetch';
 import db, {
   insertVacation,
@@ -291,6 +293,37 @@ bolt.action('open_addstop', async ({ ack, body, client }) => {
 
 // Web server: interactive map + API
 const web = express();
+
+// Security headers (HSTS, X-Content-Type-Options, X-Frame-Options, etc.)
+web.use(helmet());
+
+// --- Basic Auth middleware (protect everything including /ping) ---
+function unauthorized(res) {
+  res.set('WWW-Authenticate', 'Basic realm="Lolidays"');
+  return res.status(401).send('Authentication required');
+}
+
+function basicAuth(req, res, next) {
+  const h = req.headers.authorization || '';
+  const [scheme, encoded] = h.split(' ');
+  if (scheme !== 'Basic' || !encoded) return unauthorized(res);
+
+  const [user, pass] = Buffer.from(encoded, 'base64').toString().split(':');
+  if (user === process.env.BASIC_AUTH_USER && pass === process.env.BASIC_AUTH_PASS) return next();
+
+  return unauthorized(res);
+}
+
+web.use(basicAuth);
+
+// Limit each IP to 100 requests per 15 minutes (tweak as you like)
+web.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
+
 
 // quick health endpoint to "wake" a sleeping free instance
 web.get('/ping', (_, res) => res.type('text').send('ok'));
