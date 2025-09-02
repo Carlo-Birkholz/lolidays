@@ -225,6 +225,9 @@ bolt.view('stop_add', async ({ ack, body, view, client }) => {
   const stops = getStopsForVacation.all(vacation_id);
   const imageUrl = buildStaticMapUrl(stops);
 
+  // ✅ fallback: PUBLIC_MAP_URL or localhost
+  const mapLink = process.env.PUBLIC_MAP_URL || `http://localhost:${process.env.PORT}`;
+
   await client.chat.postMessage({
     channel: dm.channel.id,
     text: `📍 Added stop *${name}* to \`${vacation_id}\`.`,
@@ -232,7 +235,7 @@ bolt.view('stop_add', async ({ ack, body, view, client }) => {
       { type: 'section', text: { type: 'mrkdwn', text: `📍 Added *${name}* to \`${vacation_id}\`.` } },
       { type: 'image', image_url: imageUrl, alt_text: 'Updated route preview' },
       { type: 'actions', elements: [
-        { type: 'button', text: { type: 'plain_text', text: 'Open interactive map' }, url: process.env.PUBLIC_MAP_URL }
+        { type: 'button', text: { type: 'plain_text', text: 'Open interactive map' }, url: mapLink }
       ]}
     ]
   });
@@ -288,6 +291,9 @@ bolt.action('open_addstop', async ({ ack, body, client }) => {
 
 // Web server: interactive map + API
 const web = express();
+
+// quick health endpoint to "wake" a sleeping free instance
+web.get('/ping', (_, res) => res.type('text').send('ok'));
 
 web.get('/', (_, res) => {
   res.send(`<!doctype html>
