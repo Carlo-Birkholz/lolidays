@@ -295,7 +295,64 @@ bolt.action('open_addstop', async ({ ack, body, client }) => {
 const web = express();
 
 // Security headers (HSTS, X-Content-Type-Options, X-Frame-Options, etc.)
-web.use(helmet());
+// Security headers tuned for Mapbox GL
+web.use(
+  helmet({
+    // Mapbox GL uses web workers; these two help avoid COEP/CORP issues
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+
+    // Content Security Policy: allow Mapbox and your inline script
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "default-src": ["'self'"],
+
+        // Allow loading Mapbox JS and (for now) inline scripts on your page
+        "script-src": [
+          "'self'",
+          "https://api.mapbox.com",
+          "'unsafe-inline'"
+        ],
+
+        // Mapbox CSS and any inline <style> used by their widgets
+        "style-src": [
+          "'self'",
+          "https://api.mapbox.com",
+          "'unsafe-inline'"
+        ],
+
+        // Tiles, sprites, glyphs; also let data: and blob: images render
+        "img-src": [
+          "'self'",
+          "https://api.mapbox.com",
+          "data:",
+          "blob:"
+        ],
+
+        // XHR / fetch to Mapbox APIs and telemetry
+        "connect-src": [
+          "'self'",
+          "https://api.mapbox.com",
+          "https://events.mapbox.com"
+        ],
+
+        // Workers (Mapbox GL runs its renderer in a worker)
+        "worker-src": ["'self'", "blob:"],
+
+        // Fonts delivered by Mapbox styles
+        "font-src": [
+          "'self'",
+          "https://api.mapbox.com"
+        ],
+
+        // Needed by some browsers for worker fallback
+        "child-src": ["blob:"]
+      }
+    }
+  })
+);
+
 
 // --- Basic Auth middleware (protect everything including /ping) ---
 function unauthorized(res) {
